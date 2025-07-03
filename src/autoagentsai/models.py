@@ -17,3 +17,9 @@ class ChatRequest(BaseModel):
     buttonKey: Optional[str] = ""
     debug: Optional[bool] = False
 
+class ChatHistoryRequest(BaseModel):
+    agentId: Optional[str] = None
+    agentUUid: str
+    chatId: str
+    pageSize: int = 100
+    pageNumber: int = 1

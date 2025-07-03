@@ -1,5 +1,5 @@
 from .client import AutoAgentsClient
-from .types import ChatRequest, ImageInput
+from .models import ChatRequest, ImageInput
 
 __all__ = ["AutoAgentsClient", "ChatRequest", "ImageInput"]
 
