@@ -6,6 +6,7 @@ client = AutoAgentsClient(
     auth_secret="rTjIkV3OjJIfwtp7j0Fa2m6YmCsLvyXr",
 )
 
-result = client.invoke("你好")
-
-print(result)
+print(client.invoke("你好"))
+print(client.invoke("请重复我刚才说的"))
+print(client.invoke("请告诉我之前都说过什么"))
+print(client.history())
