@@ -64,70 +64,6 @@ class AutoAgentsClient:
         except Exception as e:
             return f"Exception: {str(e)}"
 
-    def chat_stream(
-        self,
-        prompt: str,
-        chat_id: Optional[str] = None,
-        images: Optional[List[str]] = None,
-        files: Optional[List[str]] = None,
-        state: Optional[Dict[str, str]] = None,
-        button_key: Optional[str] = None,
-        debug: bool = False
-    ) -> Generator[str, None, None]:
-        """流式调用，返回内容片段生成器"""
-        req = ChatRequest(
-            agentId=self.agent_id,
-            chatId=chat_id,
-            userChatInput=prompt,
-            images=[ImageInput(url=u) for u in images] if images else [],
-            files=files or [],
-            state=state or {},
-            buttonKey=button_key or "",
-            debug=debug
-        )
-        url = f"{self.base_url}/openapi/agents/chat/stream/v1"
-
-        try:
-            response = requests.post(url, headers=self.headers, json=req.model_dump(), stream=True, timeout=30)
-            if response.status_code != 200:
-                yield f"Error {response.status_code}: {response.text}"
-                return
-
-            buffer = ""
-            for chunk in response.iter_content(chunk_size=512, decode_unicode=True):
-                if not chunk:
-                    continue
-                buffer += chunk
-
-                while "\n\ndata:" in buffer or buffer.startswith("data:"):
-                    if buffer.startswith("data:"):
-                        end_pos = buffer.find("\n\n")
-                        if end_pos == -1:
-                            break
-                        message = buffer[5:end_pos]
-                        buffer = buffer[end_pos + 2:]
-                    else:
-                        start = buffer.find("\n\ndata:") + 7
-                        end = buffer.find("\n\n", start)
-                        if end == -1:
-                            break
-                        message = buffer[start:end]
-                        buffer = buffer[end + 2:]
-
-                    try:
-                        data = json.loads(message)
-                        if "content" in data and data["content"]:
-                            try:
-                                yield data["content"].encode("latin1").decode("utf-8")
-                            except Exception:
-                                yield data["content"]
-                        if data.get("complete") or data.get("finish"):
-                            return
-                    except Exception:
-                        continue
-        except Exception as e:
-            yield f"Stream error: {str(e)}"
-
     def get_chat_history(self, chat_id: str, page_size: int = 100, page_number: int = 1) -> List[Dict[str, str]]:
         req = ChatHistoryRequest(
             agentId=self.agent_id,
@@ -184,7 +120,7 @@ class AutoAgentsClient:
         else:
             return str(result)
 
-    def _chat_stream_with_chat_id(
+    def chat_stream(
         self,
         prompt: str,
         chat_id: Optional[str] = None,
@@ -268,7 +204,7 @@ class AutoAgentsClient:
         debug: bool = False,
     ) -> Generator[str, None, None]:
         """支持更丰富参数的流式对话调用"""
-        for content, chat_id in self._chat_stream_with_chat_id(
+        for content, chat_id in self.chat_stream(
             prompt=prompt,
             chat_id=self.chat_id,
             images=images,
@@ -294,25 +230,26 @@ class AutoAgentsClient:
 
 if __name__ == "__main__":
     client = AutoAgentsClient(
-        agent_id="6263ccab9d3742deb7f6dfd7caea6560",
-        auth_key="6263ccab9d3742deb7f6dfd7caea6560",
-        auth_secret="oKghw8Do8z1BL2A3deqkYWGSouUiFn7y",
+        agent_id="fe91cf3348bb419ba907b1e690143006",
+        auth_key="fe91cf3348bb419ba907b1e690143006",
+        auth_secret="mLin0asZ7YRRRxI6Cpwb8hxqZ2N9Wf4X",
         jwt_token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoiL01Nd1ZDYlRZY2dHWUtCOE1NSVo4dVFHN05BYXYrRlR6Szl3bEQ4bWU0UjQzUldVa2JlWC9CS1VkM3N3ck9ZQmMvYnlUMDc1YzhwRVUzbDdwZ3BGc0l5b0p4L3ZRdXdzS0ozMTZqd0V5RTVBTXFBUXFzcjRwWXF3OHk2WU9PY2dpbVhuenJqOWVOV01hc2tqOFc2b2l3RUFza1pxTUlWUVN6NUxsdE14WHMvV0lGaW1zYjF5RTdpdmR0WGszR0svdHBlTXA1cWdGKzErVGFBNkx1ZDZLK2V0UGQwWkRtWE8vMEZJNGtDaC9zST0iLCJleHAiOjE3NTQxMjk1MzR9.96Q5LOMf8Ve4GCxuOeMW7zISnksGKVLI0UduXQ8RbH8"
-    )
+    )   
 
     # 测试原始chat_stream
-    print("=== Testing chat_stream ===")
-    for chunk in client.chat_stream("你好"):
+    print("=== Testing first invoke_stream ===")
+    for chunk in client.invoke_stream("你好"):
         print(chunk, end="", flush=True)
     print("\n")
 
     # 测试invoke（非流式，有状态管理）
-    print("=== Testing invoke ===")
-    result = client.invoke("请重复我刚才说的")
-    print(result)
+    print("=== Testing second invoke_stream ===")
+    for chunk in client.invoke_stream("请重复我刚才说的"):
+        print(chunk, end="", flush=True)
+    print("\n")
 
     # 测试新的invoke_stream（流式，有状态管理）
-    print("\n=== Testing invoke_stream ===")
+    print("\n=== Testing third invoke_stream ===")
     for chunk in client.invoke_stream("请告诉我之前都说过什么"):
         print(chunk, end="", flush=True)
     print("\n")

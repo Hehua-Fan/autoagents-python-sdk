@@ -1,12 +1,14 @@
 from autoagentsai import AutoAgentsClient
 
 client = AutoAgentsClient(
-    agent_id="3eea63c71173463580e223e0d565340e",
-    auth_key="3eea63c71173463580e223e0d565340e",
-    auth_secret="rTjIkV3OjJIfwtp7j0Fa2m6YmCsLvyXr",
+    agent_id="fe91cf3348bb419ba907b1e690143006",
+    auth_key="fe91cf3348bb419ba907b1e690143006",
+    auth_secret="mLin0asZ7YRRRxI6Cpwb8hxqZ2N9Wf4X",
+    jwt_token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoiL01Nd1ZDYlRZY2dHWUtCOE1NSVo4dVFHN05BYXYrRlR6Szl3bEQ4bWU0UjQzUldVa2JlWC9CS1VkM3N3ck9ZQmMvYnlUMDc1YzhwRVUzbDdwZ3BGc0l5b0p4L3ZRdXdzS0ozMTZqd0V5RTVBTXFBUXFzcjRwWXF3OHk2WU9PY2dpbVhuenJqOWVOV01hc2tqOFc2b2l3RUFza1pxTUlWUVN6NUxsdE14WHMvV0lGaW1zYjF5RTdpdmR0WGszR0svdHBlTXA1cWdGKzErVGFBNkx1ZDZLK2V0UGQwWkRtWE8vMEZJNGtDaC9zST0iLCJleHAiOjE3NTQxMjk1MzR9.96Q5LOMf8Ve4GCxuOeMW7zISnksGKVLI0UduXQ8RbH8"
 )
 
-print(client.invoke("你好"))
-print(client.invoke("请重复我刚才说的"))
-print(client.invoke("请告诉我之前都说过什么"))
+for chunk in client.invoke_stream("你好"):
+    print(chunk, end="", flush=True)
+print("\n")
+
 print(client.history())
