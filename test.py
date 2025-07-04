@@ -1,6 +1,6 @@
-from autoagentsai import AutoAgentsClient
+from autoagentsai.client import ChatClient
 
-client = AutoAgentsClient(
+client = ChatClient(
     agent_id="fe91cf3348bb419ba907b1e690143006",
     auth_key="fe91cf3348bb419ba907b1e690143006",
     auth_secret="mLin0asZ7YRRRxI6Cpwb8hxqZ2N9Wf4X",

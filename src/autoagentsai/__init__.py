@@ -1,7 +1,6 @@
-from .client import AutoAgentsClient
 from .models import ChatRequest, ImageInput
 
-__all__ = ["AutoAgentsClient", "ChatRequest", "ImageInput"]
+__all__ = ["ChatRequest", "ImageInput"]
 
 
 def main() -> None:

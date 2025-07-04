@@ -2,13 +2,9 @@
 import json
 import requests
 from typing import Generator, Optional, List, Dict
-try:
-    from .models import ChatRequest, ImageInput, ChatHistoryRequest
-except ImportError:
-    from models import ChatRequest, ImageInput, ChatHistoryRequest
-from pprint import pprint
+from autoagentsai.models import ChatRequest, ImageInput, ChatHistoryRequest
 
-class AutoAgentsClient:
+class ChatClient:
     def __init__(self, agent_id: str, auth_key: str, auth_secret: str, platform: str = "uat", jwt_token: Optional[str] = None):
         AUTOAGENTS_HOST = {
             "uat": "https://uat.agentspro.cn",
@@ -229,26 +225,26 @@ class AutoAgentsClient:
 
 
 if __name__ == "__main__":
-    client = AutoAgentsClient(
+    client = ChatClient(
         agent_id="fe91cf3348bb419ba907b1e690143006",
         auth_key="fe91cf3348bb419ba907b1e690143006",
         auth_secret="mLin0asZ7YRRRxI6Cpwb8hxqZ2N9Wf4X",
         jwt_token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoiL01Nd1ZDYlRZY2dHWUtCOE1NSVo4dVFHN05BYXYrRlR6Szl3bEQ4bWU0UjQzUldVa2JlWC9CS1VkM3N3ck9ZQmMvYnlUMDc1YzhwRVUzbDdwZ3BGc0l5b0p4L3ZRdXdzS0ozMTZqd0V5RTVBTXFBUXFzcjRwWXF3OHk2WU9PY2dpbVhuenJqOWVOV01hc2tqOFc2b2l3RUFza1pxTUlWUVN6NUxsdE14WHMvV0lGaW1zYjF5RTdpdmR0WGszR0svdHBlTXA1cWdGKzErVGFBNkx1ZDZLK2V0UGQwWkRtWE8vMEZJNGtDaC9zST0iLCJleHAiOjE3NTQxMjk1MzR9.96Q5LOMf8Ve4GCxuOeMW7zISnksGKVLI0UduXQ8RbH8"
     )   
 
-    # 测试原始chat_stream
+    # 测试第一次流式调用
     print("=== Testing first invoke_stream ===")
     for chunk in client.invoke_stream("你好"):
         print(chunk, end="", flush=True)
     print("\n")
 
-    # 测试invoke（非流式，有状态管理）
+    # 测试第二次流式调用
     print("=== Testing second invoke_stream ===")
     for chunk in client.invoke_stream("请重复我刚才说的"):
         print(chunk, end="", flush=True)
     print("\n")
 
-    # 测试新的invoke_stream（流式，有状态管理）
+    # 测试第三次流式调用
     print("\n=== Testing third invoke_stream ===")
     for chunk in client.invoke_stream("请告诉我之前都说过什么"):
         print(chunk, end="", flush=True)
