@@ -1,14 +1,29 @@
 from autoagentsai.client import ChatClient
+from io import BytesIO
 
 client = ChatClient(
     agent_id="fe91cf3348bb419ba907b1e690143006",
-    auth_key="fe91cf3348bb419ba907b1e690143006",
-    auth_secret="mLin0asZ7YRRRxI6Cpwb8hxqZ2N9Wf4X",
-    jwt_token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoiL01Nd1ZDYlRZY2dHWUtCOE1NSVo4dVFHN05BYXYrRlR6Szl3bEQ4bWU0UjQzUldVa2JlWC9CS1VkM3N3ck9ZQmMvYnlUMDc1YzhwRVUzbDdwZ3BGc0l5b0p4L3ZRdXdzS0ozMTZqd0V5RTVBTXFBUXFzcjRwWXF3OHk2WU9PY2dpbVhuenJqOWVOV01hc2tqOFc2b2l3RUFza1pxTUlWUVN6NUxsdE14WHMvV0lGaW1zYjF5RTdpdmR0WGszR0svdHBlTXA1cWdGKzErVGFBNkx1ZDZLK2V0UGQwWkRtWE8vMEZJNGtDaC9zST0iLCJleHAiOjE3NTQxMjk1MzR9.96Q5LOMf8Ve4GCxuOeMW7zISnksGKVLI0UduXQ8RbH8"
+    personal_auth_key="e7a964a7e754413a9ea4bc1395a38d39",
+    personal_auth_secret="r4wBtqVD1qjItzQapJudKQPFozHAS9eb"
 )
 
-for chunk in client.invoke_stream("你好"):
-    print(chunk, end="", flush=True)
-print("\n")
+def local_ask_with_file(prompt: str, file_path: str):
+    with open(file_path, "rb") as f:
+        file_content = f.read()
+    
+    file_like = BytesIO(file_content)
+    file_like.name = file_path.split("/")[-1]
+    
+    reply = client.invoke(
+        prompt=prompt,
+        files=[file_like]
+    )
+    
+    for chunk in reply:
+        print(chunk, end="", flush=True)
 
-print(client.history())
+    print("\n=== History ===\n")
+    print(client.history())
+
+# 调用
+local_ask_with_file("请总结文件内容", "每周AI信息Vol. 20250704.pdf")

@@ -86,10 +86,10 @@ class FlowGraph:
 if __name__ == "__main__":
     graph = FlowGraph()
 
-    graph.add_node("agent1", "questionInput", position={"x": 0, "y": 100})
-    graph.add_node("agent2", "infoExtract", position={"x": 300, "y": 100})
+    graph.add_node(node_id="agent1", module_type="questionInput", position={"x": 0, "y": 100})
+    graph.add_node(node_id="agent2", module_type="infoExtract", position={"x": 300, "y": 100})
 
-    graph.add_edge("agent1", "agent2", source_handle="userChatInput", target_handle="text")
+    graph.add_edge(source="agent1", target="agent2", source_handle="userChatInput", target_handle="text")
 
     # 导出为 JSON 请求体
     print(graph.to_json())

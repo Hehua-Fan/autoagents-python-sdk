@@ -7,12 +7,21 @@ class ImageInput(BaseModel):
     url: str
 
 
+class FileInput(BaseModel):
+    groupName: str = ""
+    dsId: int = 0
+    fileId: str
+    fileName: str
+    fileUrl: str = ""
+    fileType: str = ""
+
+
 class ChatRequest(BaseModel):
     agentId: str
     chatId: Optional[str] = None
     userChatInput: str
     images: Optional[List[ImageInput]] = Field(default_factory=list)
-    files: Optional[List[str]] = Field(default_factory=list)
+    files: Optional[List[FileInput]] = Field(default_factory=list)
     state: Optional[Dict[str, str]] = Field(default_factory=dict)
     buttonKey: Optional[str] = ""
     debug: Optional[bool] = False
