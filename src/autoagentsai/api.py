@@ -16,13 +16,15 @@ def chat_stream_api(
     state: Optional[Dict[str, str]] = None,
     button_key: Optional[str] = None,
     debug: bool = False
-) -> Generator[tuple[Optional[str], Optional[str]], None, None]:
+) -> Generator[tuple[Optional[str], Optional[str], bool, bool], None, None]:
     """
     核心的流式聊天 API
     
-    返回: Generator[tuple[content, chat_id], None, None]
-    - content: 聊天内容，为 None 时表示流结束
-    - chat_id: 对话 ID，只在流结束时返回
+    返回: Generator[tuple[content, chat_id, complete, finish], None, None]
+    - content: 聊天内容片段
+    - chat_id: 对话 ID
+    - complete: 是否完成一次回复（true时表示一个回复气泡完成）
+    - finish: 是否完成整个会话（true时表示整个对话结束）
     """
     uploader = FileUploader(jwt_token=jwt_token, base_url=base_url)
     file_inputs = uploader.ensure_file_inputs(files)
@@ -47,7 +49,7 @@ def chat_stream_api(
     try:
         response = requests.post(url, headers=headers, json=req.model_dump(), stream=True, timeout=30)
         if response.status_code != 200:
-            yield (f"Error {response.status_code}: {response.text}", None)
+            yield (f"Error {response.status_code}: {response.text}", None, False, True)
             return
 
         buffer = ""
@@ -82,16 +84,24 @@ def chat_stream_api(
                     data = json.loads(message)
                     if "chatId" in data:
                         current_chat_id = data["chatId"]
+                    
+                    is_complete = data.get("complete", False)
+                    is_finish = data.get("finish", False)
+                    
                     if "content" in data and data["content"]:
                         content = data["content"]
-                        yield (content, None)
-                    if data.get("complete") or data.get("finish"):
-                        yield (None, current_chat_id)
+                        yield (content, current_chat_id, is_complete, is_finish)
+                    elif is_complete or is_finish:
+                        # 即使没有内容，也需要传递 complete/finish 状态
+                        yield (None, current_chat_id, is_complete, is_finish)
+                    
+                    # 只有在 finish 为 true 时才结束流
+                    if is_finish:
                         return
                 except Exception:
                     continue
     except Exception as e:
-        yield (f"Stream error: {str(e)}", None)
+        yield (f"Stream error: {str(e)}", None, False, True)
 
 def get_chat_history_api(
     agent_id: str,

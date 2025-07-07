@@ -1,4 +1,4 @@
-from typing import Generator, Optional, List, Dict, Union, IO
+from typing import Generator, Optional, List, Dict, Union, IO, Any
 from ..api import chat_stream_api, get_chat_history_api, get_jwt_token_api
 
 
@@ -76,25 +76,31 @@ class ChatClient:
                 - 通常在 Agent 配置了交互按钮时使用
                 - 示例: "analyze_button", "summarize_action"
                 
-            debug (bool, optional): 调试模式
+                            debug (bool, optional): 调试模式
                 - 可选参数，默认为 False
                 - 启用时会返回更详细的调试信息
                 - 用于开发和故障排查
                 
         Returns:
-            Generator[str, None, None]: 流式响应生成器
-                - 生成器对象，逐步产出 AI 的回复内容
-                - 每次 yield 返回一个字符串片段
-                - 可通过 for 循环实时获取响应内容
+            Generator[str, None, None]: 流式回复生成器
+                - 每次 yield 返回一个完整的回复字符串
+                - 自动处理多次回复：一次输入可能产生多个回复
+                - 自动过滤空回复
+                - 每个返回的字符串可直接作为独立气泡显示
+                - 适合前端单轮对话多气泡场景和后端调试
                 
         示例:
-            Example 1: 基础文本对话
+            Example 1: 基础文本对话（多气泡）
             .. code-block:: python
 
                 from autoagentsai.client import ChatClient
-                client = ChatClient(agent_id="your_agent_id", personal_auth_key="your_personal_auth_key", personal_auth_secret="your_personal_auth_secret")
-                for chunk in client.invoke("你好"):
-                    print(chunk, end="", flush=True)
+                client = ChatClient(agent_id="your_agent_id", personal_auth_key="your_key", personal_auth_secret="your_secret")
+                
+                reply_count = 0
+                for reply in client.invoke("你好"):
+                    reply_count += 1
+                    print(f"第{reply_count}个回复: {reply}")
+                    # 每个 reply 可直接作为独立气泡显示
             
             Example 2: 上传本地文件并分析
 
@@ -102,8 +108,10 @@ class ChatClient:
 
                 from autoagentsai.uploader import create_file_like
                 file_obj = create_file_like("./document.pdf")
-                for chunk in client.invoke("请分析这个文档", files=[file_obj]):
-                    print(chunk, end="", flush=True)
+                
+                for reply in client.invoke("请分析这个文档", files=[file_obj]):
+                    print(f"分析结果: {reply}")
+                    # 每个回复可以显示为独立的分析结果气泡
             
             Example 3: 处理前端上传的文件并分析
 
@@ -128,15 +136,16 @@ class ChatClient:
                     file_obj = create_file_like(content, filename=file.filename)
                     
                     # 调用 AI 分析
-                    response = ""
-                    for chunk in client.invoke(prompt, files=[file_obj]):
-                        response += chunk
+                    responses = []
+                    
+                    for reply in client.invoke(prompt, files=[file_obj]):
+                        responses.append(reply)
                         
                     return JSONResponse(content={
                         "code": 200, 
                         "message": "success", 
                         "data": {
-                            "response": response
+                            "responses": responses  # 返回多个回复
                         }
                     })
 
@@ -149,15 +158,357 @@ class ChatClient:
             .. code-block:: python
 
                 from autoagentsai.client import ChatClient
-                client = ChatClient(agent_id="your_agent_id", personal_auth_key="your_personal_auth_key", personal_auth_secret="your_personal_auth_secret")
-                for chunk in client.invoke(
+                client = ChatClient(agent_id="your_agent_id", personal_auth_key="your_key", personal_auth_secret="your_secret")
+                
+                reply_count = 0
+                for reply in client.invoke(
                     prompt="分析这张图片和文档",
                     images=["https://example.com/chart.png"],
                     files=["./data.xlsx"]
                 ):
-                    print(chunk, end="", flush=True)
+                    reply_count += 1
+                    print(f"第{reply_count}个分析结果: {reply}")
+                    # 可以将每个回复发送到前端显示为独立气泡
+                
+                print(f"共收到 {reply_count} 个分析结果")
+            
+            Example 5: WebSocket 实时多气泡推送
+
+            .. code-block:: python
+
+                from fastapi import FastAPI, WebSocket
+                from autoagentsai.client import ChatClient
+                import json
+                import asyncio
+
+                app = FastAPI()
+                client = ChatClient(agent_id="your_agent_id", personal_auth_key="your_key", personal_auth_secret="your_secret")
+
+                @app.websocket("/chat")
+                async def websocket_endpoint(websocket: WebSocket):
+                    await websocket.accept()
+                    
+                    while True:
+                        # 接收前端消息
+                        data = await websocket.receive_text()
+                        message = json.loads(data)
+                        user_input = message.get("message", "")
+                        
+                        # 发送多个回复气泡
+                        bubble_count = 0
+                        for reply in client.invoke(user_input):
+                            bubble_count += 1
+                            await websocket.send_text(json.dumps({
+                                "type": "new_bubble",
+                                "bubble_id": bubble_count,
+                                "content": reply,
+                                "timestamp": int(time.time() * 1000)
+                            }))
+                        
+                        # 发送会话结束标识
+                        await websocket.send_text(json.dumps({
+                            "type": "chat_complete",
+                            "total_bubbles": bubble_count
+                        }))
+
+            Example 6: 前端 JavaScript 多气泡实现
+
+            .. code-block:: html
+
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>AI 多气泡聊天</title>
+                    <style>
+                        .chat-container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                        .message { margin: 10px 0; padding: 10px; border-radius: 10px; }
+                        .user-message { background: #007bff; color: white; text-align: right; }
+                        .ai-bubble { background: #f1f1f1; margin: 5px 0; animation: fadeIn 0.3s; }
+                        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                        .bubble-group { border-left: 3px solid #28a745; padding-left: 10px; margin: 10px 0; }
+                        .input-area { position: fixed; bottom: 20px; width: 100%; max-width: 600px; }
+                        .loading { color: #666; font-style: italic; }
+                    </style>
+                </head>
+                <body>
+                    <div class="chat-container">
+                        <div id="messages"></div>
+                    </div>
+                    
+                    <div class="input-area">
+                        <input type="text" id="messageInput" placeholder="输入消息..." style="width: 80%;">
+                        <button onclick="sendMessage()" style="width: 18%;">发送</button>
+                    </div>
+
+                    <script>
+                        const ws = new WebSocket('ws://localhost:8000/chat');
+                        const messagesDiv = document.getElementById('messages');
+                        let currentBubbleGroup = null;
+
+                        ws.onmessage = function(event) {
+                            const data = JSON.parse(event.data);
+                            
+                            if (data.type === 'new_bubble') {
+                                // 如果是第一个气泡，创建新的气泡组
+                                if (data.bubble_id === 1) {
+                                    currentBubbleGroup = document.createElement('div');
+                                    currentBubbleGroup.className = 'bubble-group';
+                                    messagesDiv.appendChild(currentBubbleGroup);
+                                    
+                                    // 移除加载提示
+                                    const loading = document.querySelector('.loading');
+                                    if (loading) loading.remove();
+                                }
+                                
+                                // 创建新的气泡
+                                const bubble = document.createElement('div');
+                                bubble.className = 'message ai-bubble';
+                                bubble.textContent = data.content;
+                                currentBubbleGroup.appendChild(bubble);
+                                
+                                // 滚动到底部
+                                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                            }
+                            
+                            if (data.type === 'chat_complete') {
+                                console.log(`收到 ${data.total_bubbles} 个回复气泡`);
+                                currentBubbleGroup = null;
+                            }
+                        };
+
+                        function sendMessage() {
+                            const input = document.getElementById('messageInput');
+                            const message = input.value.trim();
+                            if (!message) return;
+
+                            // 显示用户消息
+                            const userMsg = document.createElement('div');
+                            userMsg.className = 'message user-message';
+                            userMsg.textContent = message;
+                            messagesDiv.appendChild(userMsg);
+                            
+                            // 显示加载提示
+                            const loading = document.createElement('div');
+                            loading.className = 'loading';
+                            loading.textContent = 'AI 正在思考...';
+                            messagesDiv.appendChild(loading);
+
+                            // 发送消息到后端
+                            ws.send(JSON.stringify({message: message}));
+                            
+                            // 清空输入框
+                            input.value = '';
+                            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                        }
+
+                        // 回车发送消息
+                        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') {
+                                sendMessage();
+                            }
+                        });
+                    </script>
+                </body>
+                </html>
+
+            Example 7: Server-Sent Events (SSE) 实现
+
+            .. code-block:: python
+
+                from fastapi import FastAPI
+                from fastapi.responses import StreamingResponse
+                from autoagentsai.client import ChatClient
+                import json
+
+                app = FastAPI()
+                client = ChatClient(agent_id="your_agent_id", personal_auth_key="your_key", personal_auth_secret="your_secret")
+
+                @app.get("/chat-stream")
+                async def chat_stream(message: str):
+                    def generate_response():
+                        bubble_count = 0
+                        for reply in client.invoke(message):
+                            bubble_count += 1
+                            # SSE 格式输出
+                            yield f"data: {json.dumps({
+                                'type': 'new_bubble',
+                                'bubble_id': bubble_count,
+                                'content': reply
+                            })}\n\n"
+                        
+                        # 结束标识
+                        yield f"data: {json.dumps({
+                            'type': 'chat_complete',
+                            'total_bubbles': bubble_count
+                        })}\n\n"
+
+                    return StreamingResponse(
+                        generate_response(),
+                        media_type="text/plain",
+                        headers={
+                            "Cache-Control": "no-cache",
+                            "Connection": "keep-alive",
+                            "Content-Type": "text/event-stream"
+                        }
+                    )
+
+            对应的前端 SSE 代码:
+
+            .. code-block:: javascript
+
+                function sendMessageSSE(message) {
+                    const eventSource = new EventSource(`/chat-stream?message=${encodeURIComponent(message)}`);
+                    
+                    let currentBubbleGroup = null;
+                    
+                    eventSource.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'new_bubble') {
+                            // 创建或使用气泡组
+                            if (data.bubble_id === 1) {
+                                currentBubbleGroup = document.createElement('div');
+                                currentBubbleGroup.className = 'bubble-group';
+                                document.getElementById('messages').appendChild(currentBubbleGroup);
+                            }
+                            
+                            // 添加新气泡
+                            const bubble = document.createElement('div');
+                            bubble.className = 'message ai-bubble';
+                            bubble.textContent = data.content;
+                            currentBubbleGroup.appendChild(bubble);
+                        }
+                        
+                        if (data.type === 'chat_complete') {
+                            eventSource.close();  // 关闭连接
+                            console.log(`收到 ${data.total_bubbles} 个回复气泡`);
+                        }
+                    };
+                }
+
+            Example 8: React 组件实现
+
+            .. code-block:: javascript
+
+                import React, { useState, useEffect, useRef } from 'react';
+
+                const MultiBubbleChat = () => {
+                    const [messages, setMessages] = useState([]);
+                    const [input, setInput] = useState('');
+                    const [isLoading, setIsLoading] = useState(false);
+                    const messagesEndRef = useRef(null);
+
+                    const scrollToBottom = () => {
+                        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                    };
+
+                    useEffect(() => {
+                        scrollToBottom();
+                    }, [messages]);
+
+                    const sendMessage = async () => {
+                        if (!input.trim()) return;
+
+                        // 添加用户消息
+                        const userMessage = { type: 'user', content: input, id: Date.now() };
+                        setMessages(prev => [...prev, userMessage]);
+                        
+                        const currentInput = input;
+                        setInput('');
+                        setIsLoading(true);
+
+                        // 创建新的气泡组
+                        const bubbleGroupId = Date.now();
+                        const bubbleGroup = { 
+                            type: 'bubble-group', 
+                            id: bubbleGroupId, 
+                            bubbles: [] 
+                        };
+                        setMessages(prev => [...prev, bubbleGroup]);
+
+                        try {
+                            const response = await fetch(`/chat-stream?message=${encodeURIComponent(currentInput)}`);
+                            const reader = response.body.getReader();
+
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+
+                                const chunk = new TextDecoder().decode(value);
+                                const lines = chunk.split('\n');
+
+                                for (const line of lines) {
+                                    if (line.startsWith('data: ')) {
+                                        const data = JSON.parse(line.slice(6));
+                                        
+                                        if (data.type === 'new_bubble') {
+                                            setMessages(prev => prev.map(msg => 
+                                                msg.id === bubbleGroupId 
+                                                    ? { ...msg, bubbles: [...msg.bubbles, {
+                                                        id: data.bubble_id,
+                                                        content: data.content
+                                                    }]}
+                                                    : msg
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.error('聊天错误:', error);
+                        } finally {
+                            setIsLoading(false);
+                        }
+                    };
+
+                    return (
+                        <div className="chat-container">
+                            <div className="messages">
+                                {messages.map(msg => {
+                                    if (msg.type === 'user') {
+                                        return (
+                                            <div key={msg.id} className="user-message">
+                                                {msg.content}
+                                            </div>
+                                        );
+                                    } else if (msg.type === 'bubble-group') {
+                                        return (
+                                            <div key={msg.id} className="bubble-group">
+                                                {msg.bubbles.map(bubble => (
+                                                    <div key={bubble.id} className="ai-bubble">
+                                                        {bubble.content}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+                                })}
+                                {isLoading && <div className="loading">AI 正在思考...</div>}
+                                <div ref={messagesEndRef} />
+                            </div>
+                            
+                            <div className="input-area">
+                                <input
+                                    type="text"
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                                    placeholder="输入消息..."
+                                    disabled={isLoading}
+                                />
+                                <button onClick={sendMessage} disabled={isLoading}>
+                                    发送
+                                </button>
+                            </div>
+                        </div>
+                    );
+                };
+
+                export default MultiBubbleChat;
         """
-        for content, chat_id in chat_stream_api(
+
+        current_reply = ""
+        for content, chat_id, complete, finish in chat_stream_api(
             agent_id=self.agent_id,
             jwt_token=self.jwt_token,
             base_url=self.base_url,
@@ -171,8 +522,18 @@ class ChatClient:
         ):
             if chat_id is not None:
                 self.chat_id = chat_id
-            elif content is not None:
-                yield content
+            
+            if content:
+                current_reply += content
+            
+            if complete and current_reply.strip():
+                # 一个完整回复完成且有内容
+                yield current_reply
+                current_reply = ""  # 重置为下一个回复
+            
+            if finish:
+                # 会话结束
+                break
 
     def history(self):
         """
