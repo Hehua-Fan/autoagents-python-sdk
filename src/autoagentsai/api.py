@@ -16,12 +16,13 @@ def chat_stream_api(
     state: Optional[Dict[str, str]] = None,
     button_key: Optional[str] = None,
     debug: bool = False
-) -> Generator[tuple[Optional[str], Optional[str], bool, bool], None, None]:
+) -> Generator[tuple[Optional[str], Optional[str], Optional[str], bool, bool], None, None]:
     """
     核心的流式聊天 API
     
-    返回: Generator[tuple[content, chat_id, complete, finish], None, None]
+    返回: Generator[tuple[content, reasoning_content, chat_id, complete, finish], None, None]
     - content: 聊天内容片段
+    - reasoning_content: 推理内容片段
     - chat_id: 对话 ID
     - complete: 是否完成一次回复（true时表示一个回复气泡完成）
     - finish: 是否完成整个会话（true时表示整个对话结束）
@@ -47,9 +48,9 @@ def chat_stream_api(
     url = f"{base_url}/api/chat/stream/input/v2"
 
     try:
-        response = requests.post(url, headers=headers, json=req.model_dump(), stream=True, timeout=30)
+        response = requests.post(url, headers=headers, json=req.model_dump(), stream=True, timeout=30000)
         if response.status_code != 200:
-            yield (f"Error {response.status_code}: {response.text}", None, False, True)
+            yield (f"Error {response.status_code}: {response.text}", None, None, False, True)
             return
 
         buffer = ""
@@ -88,12 +89,16 @@ def chat_stream_api(
                     is_complete = data.get("complete", False)
                     is_finish = data.get("finish", False)
                     
-                    if "content" in data and data["content"]:
-                        content = data["content"]
-                        yield (content, current_chat_id, is_complete, is_finish)
+                    content = data.get("content", "")
+                    reasoning_content = data.get("reasoningContent", "")
+                    
+                    if content or reasoning_content:
+                        yield (content if content else None, 
+                               reasoning_content if reasoning_content else None, 
+                               current_chat_id, is_complete, is_finish)
                     elif is_complete or is_finish:
                         # 即使没有内容，也需要传递 complete/finish 状态
-                        yield (None, current_chat_id, is_complete, is_finish)
+                        yield (None, None, current_chat_id, is_complete, is_finish)
                     
                     # 只有在 finish 为 true 时才结束流
                     if is_finish:
@@ -101,7 +106,7 @@ def chat_stream_api(
                 except Exception:
                     continue
     except Exception as e:
-        yield (f"Stream error: {str(e)}", None, False, True)
+        yield (f"Stream error: {str(e)}", None, None, False, True)
 
 def get_chat_history_api(
     agent_id: str,
@@ -126,7 +131,7 @@ def get_chat_history_api(
     )
 
     url = f"{base_url}/api/chat/detail"
-    response = requests.post(url, headers=headers, json=req.model_dump(), timeout=30)
+    response = requests.post(url, headers=headers, json=req.model_dump(), timeout=30000)
 
     def extract_chat_history(data: List[dict]) -> List[dict]:
         """提取和格式化聊天历史"""
